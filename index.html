@@ -271,14 +271,8 @@ input,select,textarea,button{font-family:'Syne',sans-serif}
           <div class="field"><label>Sold Date</label><input type="date" id="f-sold-date" /></div>
         </div>
         <div class="form-row">
-          <div class="field"><label>Marketplace</label>
-            <select id="f-marketplace">
-              <option value="ebay">eBay (13.5%)</option>
-              <option value="tcgplayer">TCGplayer (10.25%)</option>
-              <option value="custom">Other / Direct</option>
-            </select>
-          </div>
-          <div class="field"><label>Custom Fee %</label><input type="number" step="0.01" id="f-custom-fee" placeholder="e.g. 5" /></div>
+          <div class="field"><label>Shipping Collected ($) <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— from buyer</span></label><input type="number" step="0.01" id="f-shipping-collected" placeholder="0.00" /></div>
+          <div class="field"><label>Shipping Cost ($) <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— what you paid</span></label><input type="number" step="0.01" id="f-shipping-cost" placeholder="0.00" /></div>
         </div>
       </div>
 
@@ -293,6 +287,16 @@ input,select,textarea,button{font-family:'Syne',sans-serif}
             <option value="large">Large</option>
           </select>
         </div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Marketplace</label>
+          <select id="f-marketplace">
+            <option value="ebay">eBay (13.5%)</option>
+            <option value="tcgplayer">TCGplayer (10.25%)</option>
+            <option value="custom">Other / Direct</option>
+          </select>
+        </div>
+        <div class="field"><label>Custom Fee %</label><input type="number" step="0.01" id="f-custom-fee" placeholder="e.g. 5" /></div>
       </div>
       <div class="field"><label>Misc Cost ($) <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— extra costs for this item</span></label>
         <input type="number" step="0.01" id="f-misc-cost" placeholder="0.00" />
@@ -437,9 +441,11 @@ function calcPL(item) {
   const cost = Number(item.cost) || 0;
   const pkg = pkgCost(item.packaging_size);
   const misc = Number(item.misc_cost) || 0;
+  const shippingCollected = Number(item.shipping_collected) || 0;
+  const shippingCost = Number(item.shipping_cost) || 0;
   const fee = feePct(item.marketplace, item.custom_fee);
   const feeAmt = sold * fee;
-  return sold - cost - pkg - misc - feeAmt;
+  return sold + shippingCollected - cost - pkg - misc - feeAmt - shippingCost;
 }
 
 function calcEstProfit(item) {
@@ -791,7 +797,7 @@ function updateSetting(key, val) {
 function openAddForm() {
   $('f-id').value='';
   $('form-title').textContent='Add Item';
-  ['f-title','f-grade','f-cost','f-purchase-date','f-sell-price','f-market-value','f-sold-price','f-sold-date','f-location','f-misc-cost','f-notes','f-custom-fee'].forEach(id=>setVal(id,''));
+  ['f-title','f-grade','f-cost','f-purchase-date','f-sell-price','f-market-value','f-sold-price','f-sold-date','f-location','f-misc-cost','f-notes','f-custom-fee','f-shipping-collected','f-shipping-cost'].forEach(id=>setVal(id,''));
   setVal('f-category','trading_card');
   setVal('f-status','in_stock');
   setVal('f-condition','');
@@ -824,6 +830,8 @@ function openEditForm(item) {
   setVal('f-notes', item.notes||'');
   setVal('f-sold-price', item.sold_price||'');
   setVal('f-sold-date', item.sold_date||'');
+  setVal('f-shipping-collected', item.shipping_collected||'');
+  setVal('f-shipping-cost', item.shipping_cost||'');
   toggleSoldFields();
   renderCatFields(item.extra_fields||{});
   hide('form-err');
@@ -875,6 +883,8 @@ async function saveItem() {
     custom_fee: val('f-custom-fee')||null,
     notes: val('f-notes')||null,
     sold_price: val('f-sold-price')||null, sold_date: val('f-sold-date')||null,
+    shipping_collected: val('f-shipping-collected')||null,
+    shipping_cost: val('f-shipping-cost')||null,
     extra_fields: extra, barcode: null,
   };
 
@@ -915,6 +925,8 @@ function viewItem(id) {
   const est = calcEstProfit(item);
   const pkgAmt = pkgCost(item.packaging_size);
   const miscAmt = Number(item.misc_cost)||0;
+  const shippingCollected = Number(item.shipping_collected)||0;
+  const shippingCost = Number(item.shipping_cost)||0;
   const feeAmt = item.status==='sold' ? (Number(item.sold_price)||0)*feePct(item.marketplace,item.custom_fee) : 0;
 
   const dItems = [
@@ -950,9 +962,11 @@ function viewItem(id) {
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Cost Breakdown</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         <span class="cost-pill">Sold <b>${fmt(sp)}</b></span>
+        ${shippingCollected?`<span class="cost-pill">Ship. Collected <b style="color:var(--green)">+${fmt(shippingCollected)}</b></span>`:''}
         <span class="cost-pill">Cost <b style="color:var(--red)">-${fmt(cost)}</b></span>
         ${pkgAmt?`<span class="cost-pill">Pkg <b style="color:var(--red)">-${fmt(pkgAmt)}</b></span>`:''}
         ${feeAmt?`<span class="cost-pill">Fee <b style="color:var(--red)">-${fmt(feeAmt)}</b></span>`:''}
+        ${shippingCost?`<span class="cost-pill">Ship. Cost <b style="color:var(--red)">-${fmt(shippingCost)}</b></span>`:''}
         ${miscAmt?`<span class="cost-pill">Misc <b style="color:var(--red)">-${fmt(miscAmt)}</b></span>`:''}
         <span class="cost-pill">Net <b style="color:${pl>=0?'var(--green)':'var(--red)'}">${fmtP(pl)}</b></span>
       </div>`;
