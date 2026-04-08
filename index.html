@@ -68,7 +68,7 @@ input,select,textarea,button{font-family:'Syne',sans-serif}
 .page-title span{color:var(--text2);font-weight:400;font-size:14px;margin-left:8px}
 
 /* Stats */
-.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:28px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
 .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px}
 .stat-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px}
 .stat-value{font-size:24px;font-weight:800;letter-spacing:-1px;font-family:'DM Mono',monospace}
@@ -196,6 +196,7 @@ input,select,textarea,button{font-family:'Syne',sans-serif}
     <div class="sidebar-logo">VAULT<span>.</span></div>
     <div class="nav-item active" id="nav-dashboard" onclick="setPage('dashboard')">◈ Dashboard</div>
     <div class="nav-item" id="nav-inventory" onclick="setPage('inventory')">▦ Inventory</div>
+    <div class="nav-item" id="nav-listed" onclick="setPage('listed')">◎ Listed</div>
     <div class="nav-item" id="nav-packaging" onclick="setPage('packaging')">⬡ Packaging</div>
     <div class="nav-item" id="nav-settings" onclick="setPage('settings')">⚙ Settings</div>
     <div class="sidebar-bottom">
@@ -210,6 +211,7 @@ input,select,textarea,button{font-family:'Syne',sans-serif}
     </div>
     <div id="page-dashboard"></div>
     <div id="page-inventory" class="hidden"></div>
+    <div id="page-listed" class="hidden"></div>
     <div id="page-packaging" class="hidden"></div>
     <div id="page-settings" class="hidden"></div>
   </div>
@@ -530,16 +532,22 @@ async function fetchPackaging() {
 // ── Navigation ────────────────────────────────────────────────────────────────
 function setPage(p) {
   currentPage = p;
-  ['dashboard','inventory','packaging','settings'].forEach(pg => {
+  ['dashboard','inventory','listed','packaging','settings'].forEach(pg => {
     $('nav-'+pg).classList.toggle('active', pg===p);
     $('page-'+pg).classList.toggle('hidden', pg!==p);
   });
-  const titles = {dashboard:'Dashboard',inventory:'Inventory',packaging:'Packaging',settings:'Settings'};
-  const counts = {inventory:` <span style="color:var(--text2);font-weight:400;font-size:14px">${items.length} items</span>`, packaging:` <span style="color:var(--text2);font-weight:400;font-size:14px">${packaging.length} items</span>`};
+  const titles = {dashboard:'Dashboard',inventory:'Inventory',listed:'Listed',packaging:'Packaging',settings:'Settings'};
+  const listed = items.filter(i=>i.status==='listed');
+  const counts = {
+    inventory:` <span style="color:var(--text2);font-weight:400;font-size:14px">${items.length} items</span>`,
+    listed:` <span style="color:var(--text2);font-weight:400;font-size:14px">${listed.length} items</span>`,
+    packaging:` <span style="color:var(--text2);font-weight:400;font-size:14px">${packaging.length} items</span>`
+  };
   $('page-title-text').innerHTML = titles[p] + (counts[p]||'');
 
   const actions = {
     inventory:`<button class="btn btn-primary" onclick="openAddForm()">+ Add Item</button>`,
+    listed:`<button class="btn btn-primary" onclick="openAddForm()">+ Add Item</button>`,
     packaging:`<button class="btn btn-primary" onclick="openPkgForm()">+ Add Packaging</button>`,
     dashboard:`<button class="btn btn-primary" onclick="openAddForm()">+ Add Item</button>`
   };
@@ -547,6 +555,7 @@ function setPage(p) {
 
   if (p==='dashboard') renderDashboard();
   if (p==='inventory') renderInventory();
+  if (p==='listed') renderListed();
   if (p==='packaging') renderPackaging();
   if (p==='settings') renderSettings();
 }
@@ -556,17 +565,10 @@ function renderDashboard() {
   const active = items.filter(i=>i.status!=='sold');
   const sold = items.filter(i=>i.status==='sold');
   const listed = items.filter(i=>i.status==='listed');
+  const instock = items.filter(i=>i.status==='in_stock');
   const invested = active.reduce((s,i)=>s+(Number(i.cost)||0),0);
   const realized = sold.reduce((s,i)=>s+(calcPL(i)||0),0);
   const unrealized = active.reduce((s,i)=>s+(calcEstProfit(i)||0),0);
-  const projected = listed.reduce((s,i)=>{
-    const sp = Number(i.sell_price)||0;
-    const cost = Number(i.cost)||0;
-    const pkg = pkgCost(i.packaging_size);
-    const misc = Number(i.misc_cost)||0;
-    const fee = feePct(i.marketplace, i.custom_fee);
-    return s + (sp - cost - pkg - misc - (sp*fee));
-  },0);
 
   const recent = [...items].slice(0,10);
   const rows = recent.map(item => {
@@ -579,17 +581,16 @@ function renderDashboard() {
       <span style="font-size:12px;color:var(--text2)">${CAT_LABELS[item.category]||item.category}</span>
       <span><span class="status-badge" style="background:${sc.bg};color:${sc.color}">${sc.label}</span></span>
       <span class="mono" style="font-size:13px">${fmt(item.cost)}</span>
-      <span class="${showVal==null?'':''}${showVal>=0?'profit-pos':'profit-neg'}">${showVal==null?'—':fmtP(showVal)}</span>
+      <span class="${showVal==null?'mono':showVal>=0?'profit-pos':'profit-neg'}" style="${showVal==null?'color:var(--text3)':''}">${showVal==null?'—':fmtP(showVal)}</span>
     </div>`;
   }).join('');
 
   $('page-dashboard').innerHTML = `
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-label">Total Items</div><div class="stat-value">${items.length}</div><div class="stat-sub">${active.length} active · ${sold.length} sold</div></div>
+      <div class="stat-card"><div class="stat-label">Total Items</div><div class="stat-value">${items.length}</div><div class="stat-sub">${instock.length} in stock · ${listed.length} listed · ${sold.length} sold</div></div>
       <div class="stat-card"><div class="stat-label">Capital Invested</div><div class="stat-value amber">${fmt(invested)}</div><div class="stat-sub">active inventory</div></div>
-      <div class="stat-card"><div class="stat-label">Realized P/L</div><div class="stat-value ${realized>=0?'green':''}">${fmtP(realized)}</div><div class="stat-sub">from ${sold.length} sold items</div></div>
       <div class="stat-card"><div class="stat-label">Est. Profit</div><div class="stat-value ${unrealized>=0?'green':''}">${fmtP(unrealized)}</div><div class="stat-sub">market vs. cost basis</div></div>
-      <div class="stat-card"><div class="stat-label">Projected (Listed)</div><div class="stat-value ${projected>=0?'green':''}">${fmtP(projected)}</div><div class="stat-sub">after fees &amp; packaging</div></div>
+      <div class="stat-card"><div class="stat-label">Realized P/L</div><div class="stat-value ${realized>=0?'green':''}">${fmtP(realized)}</div><div class="stat-sub">from ${sold.length} sold items</div></div>
     </div>
     <div style="margin-bottom:16px;font-weight:700;font-size:14px;color:var(--text2);text-transform:uppercase;letter-spacing:0.08em">Recent Items</div>
     ${items.length===0 ? emptyState('📦','No items yet','Add your first item to get started') : `
@@ -651,6 +652,69 @@ function renderInventory(search='', cat='all', status='all') {
 
   if (cat!=='all') $('inv-cat').value=cat;
   if (status!=='all') $('inv-status').value=status;
+}
+
+// ── Listed ────────────────────────────────────────────────────────────────────
+function renderListed() {
+  const listed = items.filter(i=>i.status==='listed');
+
+  if (listed.length === 0) {
+    $('page-listed').innerHTML = emptyState('◎','No listed items','Mark items as Listed to track projected profits here');
+    return;
+  }
+
+  const totalProjected = listed.reduce((s,i)=>{
+    const sp = Number(i.sell_price)||0;
+    const cost = Number(i.cost)||0;
+    const pkg = pkgCost(i.packaging_size);
+    const misc = Number(i.misc_cost)||0;
+    const fee = feePct(i.marketplace, i.custom_fee);
+    return s + (sp - cost - pkg - misc - (sp*fee));
+  },0);
+
+  const cards = listed.map(item => {
+    const sp = Number(item.sell_price)||0;
+    const cost = Number(item.cost)||0;
+    const pkg = pkgCost(item.packaging_size);
+    const misc = Number(item.misc_cost)||0;
+    const fee = feePct(item.marketplace, item.custom_fee);
+    const feeAmt = sp * fee;
+    const projected = sp - cost - pkg - misc - feeAmt;
+    const sub = [item.condition, item.grade].filter(Boolean).join(' · ') || '<span style="opacity:0.4">No grade</span>';
+    const mktLabel = MARKETPLACE_LABELS[item.marketplace||settings.default_marketplace]||'eBay';
+    const feePctLabel = Math.round(fee*100*100)/100;
+    return `<div class="item-card" onclick="viewItem('${item.id}')">
+      <div class="item-card-top">
+        <span class="cat-badge">${CAT_LABELS[item.category]||item.category}</span>
+        <span class="status-badge" style="background:#2e2208;color:#f59e0b">Listed</span>
+      </div>
+      <div class="item-title">${esc(item.title)}</div>
+      <div class="item-sub">${sub}</div>
+      <div class="item-nums">
+        <div><div class="num-label">List Price</div><div class="num-val">${fmt(sp)}</div></div>
+        <div><div class="num-label">Cost</div><div class="num-val">${fmt(cost)}</div></div>
+        <div><div class="num-label">Projected</div><div class="num-val ${projected>=0?'green':'red'}">${fmtP(projected)}</div></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px">
+        ${pkg?`<span class="cost-pill">Pkg <b>-${fmt(pkg)}</b></span>`:''}
+        ${feeAmt?`<span class="cost-pill">${mktLabel} ${feePctLabel}% <b>-${fmt(feeAmt)}</b></span>`:''}
+        ${misc?`<span class="cost-pill">Misc <b>-${fmt(misc)}</b></span>`:''}
+      </div>
+      ${item.location ? `<div class="item-location">📦 ${esc(item.location)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  $('page-listed').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 24px;display:flex;gap:32px">
+        <div><div class="stat-label" style="margin-bottom:4px">Items Listed</div><div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace">${listed.length}</div></div>
+        <div style="width:1px;background:var(--border)"></div>
+        <div><div class="stat-label" style="margin-bottom:4px">Total Projected</div><div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:${totalProjected>=0?'var(--green)':'var(--red)'}">${fmtP(totalProjected)}</div></div>
+        <div style="width:1px;background:var(--border)"></div>
+        <div><div class="stat-label" style="margin-bottom:4px">After Fees &amp; Packaging</div><div style="font-size:13px;color:var(--text2);margin-top:4px">fees + pkg deducted per item</div></div>
+      </div>
+    </div>
+    <div class="items-grid">${cards}</div>`;
 }
 
 // ── Packaging ─────────────────────────────────────────────────────────────────
@@ -826,6 +890,7 @@ async function saveItem() {
     items = id ? items.map(i=>i.id===id?res.data:i) : [res.data,...items];
     closeForm();
     if (currentPage==='dashboard') renderDashboard();
+    else if (currentPage==='listed') renderListed();
     else renderInventory();
   } catch(e) {
     show('form-err'); $('form-err').textContent=e.message;
@@ -922,6 +987,7 @@ async function deleteItem() {
   items = items.filter(i=>i.id!==detailItemId);
   closeDetail();
   if (currentPage==='dashboard') renderDashboard();
+  else if (currentPage==='listed') renderListed();
   else renderInventory();
 }
 
