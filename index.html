@@ -90,7 +90,11 @@ input,select,textarea,button{font-family:'Syne',sans-serif}
 .item-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;cursor:pointer;transition:all 0.15s}
 .item-card:hover{border-color:var(--border2);transform:translateY(-1px)}
 .item-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
-.cat-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);background:var(--bg3);padding:3px 8px;border-radius:4px}
+.cat-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;padding:3px 8px;border-radius:4px}
+.cat-trading_card{background:#0d1f38;color:#60a5fa}
+.cat-comic{background:#2d1a00;color:#fb923c}
+.cat-video_game{background:#1a0d2e;color:#a78bfa}
+.cat-other{background:var(--bg3);color:var(--text3)}
 .status-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 8px;border-radius:4px}
 .item-title{font-size:15px;font-weight:700;margin-bottom:4px;line-height:1.3}
 .item-sub{font-size:12px;color:var(--text2);margin-bottom:14px}
@@ -197,6 +201,7 @@ input,select,textarea,button{font-family:'Syne',sans-serif}
     <div class="nav-item active" id="nav-dashboard" onclick="setPage('dashboard')">◈ Dashboard</div>
     <div class="nav-item" id="nav-inventory" onclick="setPage('inventory')">▦ Inventory</div>
     <div class="nav-item" id="nav-listed" onclick="setPage('listed')">◎ Listed</div>
+    <div class="nav-item" id="nav-sold" onclick="setPage('sold')">✓ Sold</div>
     <div class="nav-item" id="nav-packaging" onclick="setPage('packaging')">⬡ Packaging</div>
     <div class="nav-item" id="nav-settings" onclick="setPage('settings')">⚙ Settings</div>
     <div class="sidebar-bottom">
@@ -212,6 +217,7 @@ input,select,textarea,button{font-family:'Syne',sans-serif}
     <div id="page-dashboard"></div>
     <div id="page-inventory" class="hidden"></div>
     <div id="page-listed" class="hidden"></div>
+    <div id="page-sold" class="hidden"></div>
     <div id="page-packaging" class="hidden"></div>
     <div id="page-settings" class="hidden"></div>
   </div>
@@ -538,15 +544,17 @@ async function fetchPackaging() {
 // ── Navigation ────────────────────────────────────────────────────────────────
 function setPage(p) {
   currentPage = p;
-  ['dashboard','inventory','listed','packaging','settings'].forEach(pg => {
+  ['dashboard','inventory','listed','sold','packaging','settings'].forEach(pg => {
     $('nav-'+pg).classList.toggle('active', pg===p);
     $('page-'+pg).classList.toggle('hidden', pg!==p);
   });
-  const titles = {dashboard:'Dashboard',inventory:'Inventory',listed:'Listed',packaging:'Packaging',settings:'Settings'};
-  const listed = items.filter(i=>i.status==='listed');
+  const titles = {dashboard:'Dashboard',inventory:'Inventory',listed:'Listed',sold:'Sold',packaging:'Packaging',settings:'Settings'};
+  const listedItems = items.filter(i=>i.status==='listed');
+  const soldItems = items.filter(i=>i.status==='sold');
   const counts = {
     inventory:` <span style="color:var(--text2);font-weight:400;font-size:14px">${items.length} items</span>`,
-    listed:` <span style="color:var(--text2);font-weight:400;font-size:14px">${listed.length} items</span>`,
+    listed:` <span style="color:var(--text2);font-weight:400;font-size:14px">${listedItems.length} items</span>`,
+    sold:` <span style="color:var(--text2);font-weight:400;font-size:14px">${soldItems.length} items</span>`,
     packaging:` <span style="color:var(--text2);font-weight:400;font-size:14px">${packaging.length} items</span>`
   };
   $('page-title-text').innerHTML = titles[p] + (counts[p]||'');
@@ -554,6 +562,7 @@ function setPage(p) {
   const actions = {
     inventory:`<button class="btn btn-primary" onclick="openAddForm()">+ Add Item</button>`,
     listed:`<button class="btn btn-primary" onclick="openAddForm()">+ Add Item</button>`,
+    sold:`<button class="btn btn-primary" onclick="openAddForm()">+ Add Item</button>`,
     packaging:`<button class="btn btn-primary" onclick="openPkgForm()">+ Add Packaging</button>`,
     dashboard:`<button class="btn btn-primary" onclick="openAddForm()">+ Add Item</button>`
   };
@@ -562,6 +571,7 @@ function setPage(p) {
   if (p==='dashboard') renderDashboard();
   if (p==='inventory') renderInventory();
   if (p==='listed') renderListed();
+  if (p==='sold') renderSold();
   if (p==='packaging') renderPackaging();
   if (p==='settings') renderSettings();
 }
@@ -584,7 +594,7 @@ function renderDashboard() {
     const showVal = item.status==='sold' ? pl : est;
     return `<div class="table-row inv-cols" onclick="viewItem('${item.id}')">
       <span style="font-weight:600;font-size:13px">${esc(item.title)}</span>
-      <span style="font-size:12px;color:var(--text2)">${CAT_LABELS[item.category]||item.category}</span>
+      <span>${catBadge(item.category)}</span>
       <span><span class="status-badge" style="background:${sc.bg};color:${sc.color}">${sc.label}</span></span>
       <span class="mono" style="font-size:13px">${fmt(item.cost)}</span>
       <span class="${showVal==null?'mono':showVal>=0?'profit-pos':'profit-neg'}" style="${showVal==null?'color:var(--text3)':''}">${showVal==null?'—':fmtP(showVal)}</span>
@@ -624,7 +634,7 @@ function renderInventory(search='', cat='all', status='all') {
     const showEst = item.status !== 'sold';
     return `<div class="item-card" onclick="viewItem('${item.id}')">
       <div class="item-card-top">
-        <span class="cat-badge">${CAT_LABELS[item.category]||item.category}</span>
+        ${catBadge(item.category)}
         <span class="status-badge" style="background:${sc.bg};color:${sc.color}">${sc.label}</span>
       </div>
       <div class="item-title">${esc(item.title)}</div>
@@ -691,7 +701,7 @@ function renderListed() {
     const feePctLabel = Math.round(fee*100*100)/100;
     return `<div class="item-card" onclick="viewItem('${item.id}')">
       <div class="item-card-top">
-        <span class="cat-badge">${CAT_LABELS[item.category]||item.category}</span>
+        ${catBadge(item.category)}
         <span class="status-badge" style="background:#2e2208;color:#f59e0b">Listed</span>
       </div>
       <div class="item-title">${esc(item.title)}</div>
@@ -718,6 +728,66 @@ function renderListed() {
         <div><div class="stat-label" style="margin-bottom:4px">Total Projected</div><div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:${totalProjected>=0?'var(--green)':'var(--red)'}">${fmtP(totalProjected)}</div></div>
         <div style="width:1px;background:var(--border)"></div>
         <div><div class="stat-label" style="margin-bottom:4px">After Fees &amp; Packaging</div><div style="font-size:13px;color:var(--text2);margin-top:4px">fees + pkg deducted per item</div></div>
+      </div>
+    </div>
+    <div class="items-grid">${cards}</div>`;
+}
+
+// ── Sold ──────────────────────────────────────────────────────────────────────
+function renderSold() {
+  const sold = items.filter(i=>i.status==='sold');
+
+  if (sold.length === 0) {
+    $('page-sold').innerHTML = emptyState('✓','No sold items yet','Mark items as Sold to track your realized profits here');
+    return;
+  }
+
+  const totalRevenue = sold.reduce((s,i)=>s+(Number(i.sold_price)||0)+(Number(i.shipping_collected)||0),0);
+  const totalCost = sold.reduce((s,i)=>s+(Number(i.cost)||0),0);
+  const totalPL = sold.reduce((s,i)=>s+(calcPL(i)||0),0);
+
+  const cards = sold.map(item => {
+    const pl = calcPL(item);
+    const sp = Number(item.sold_price)||0;
+    const pkg = pkgCost(item.packaging_size);
+    const feeAmt = sp * feePct(item.marketplace, item.custom_fee);
+    const shippingCollected = Number(item.shipping_collected)||0;
+    const shippingCost = Number(item.shipping_cost)||0;
+    const misc = Number(item.misc_cost)||0;
+    const sub = [item.condition, item.grade].filter(Boolean).join(' · ') || '<span style="opacity:0.4">No grade</span>';
+    return `<div class="item-card" onclick="viewItem('${item.id}')">
+      <div class="item-card-top">
+        ${catBadge(item.category)}
+        <span class="status-badge" style="background:#1e1a3a;color:#8b5cf6">Sold</span>
+      </div>
+      <div class="item-title">${esc(item.title)}</div>
+      <div class="item-sub">${sub}</div>
+      <div class="item-nums">
+        <div><div class="num-label">Sold For</div><div class="num-val">${fmt(item.sold_price)}</div></div>
+        <div><div class="num-label">Cost</div><div class="num-val">${fmt(item.cost)}</div></div>
+        <div><div class="num-label">P/L</div><div class="num-val ${pl>=0?'green':'red'}">${fmtP(pl)}</div></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px">
+        ${shippingCollected?`<span class="cost-pill">Ship. In <b style="color:var(--green)">+${fmt(shippingCollected)}</b></span>`:''}
+        ${pkg?`<span class="cost-pill">Pkg <b>-${fmt(pkg)}</b></span>`:''}
+        ${feeAmt?`<span class="cost-pill">${MARKETPLACE_LABELS[item.marketplace||settings.default_marketplace]||'Fee'} <b>-${fmt(feeAmt)}</b></span>`:''}
+        ${shippingCost?`<span class="cost-pill">Ship. Out <b>-${fmt(shippingCost)}</b></span>`:''}
+        ${misc?`<span class="cost-pill">Misc <b>-${fmt(misc)}</b></span>`:''}
+      </div>
+      ${item.sold_date ? `<div class="item-location">📅 ${item.sold_date}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  $('page-sold').innerHTML = `
+    <div style="margin-bottom:20px">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 24px;display:flex;gap:32px">
+        <div><div class="stat-label" style="margin-bottom:4px">Items Sold</div><div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace">${sold.length}</div></div>
+        <div style="width:1px;background:var(--border)"></div>
+        <div><div class="stat-label" style="margin-bottom:4px">Total Revenue</div><div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:var(--amber)">${fmt(totalRevenue)}</div></div>
+        <div style="width:1px;background:var(--border)"></div>
+        <div><div class="stat-label" style="margin-bottom:4px">Total Cost</div><div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:var(--red)">-${fmt(totalCost)}</div></div>
+        <div style="width:1px;background:var(--border)"></div>
+        <div><div class="stat-label" style="margin-bottom:4px">Realized P/L</div><div style="font-size:22px;font-weight:800;font-family:'DM Mono',monospace;color:${totalPL>=0?'var(--green)':'var(--red)'}">${fmtP(totalPL)}</div></div>
       </div>
     </div>
     <div class="items-grid">${cards}</div>`;
@@ -901,6 +971,7 @@ async function saveItem() {
     closeForm();
     if (currentPage==='dashboard') renderDashboard();
     else if (currentPage==='listed') renderListed();
+    else if (currentPage==='sold') renderSold();
     else renderInventory();
   } catch(e) {
     show('form-err'); $('form-err').textContent=e.message;
@@ -915,6 +986,7 @@ function viewItem(id) {
   const item = items.find(i=>i.id===id);
   if (!item) return;
   const sc = STATUS_STYLES[item.status]||{bg:'var(--bg3)',color:'var(--text2)',label:item.status};
+  $('d-cat').className = `cat-badge cat-${item.category}`;
   $('d-cat').textContent = CAT_LABELS[item.category]||item.category;
   $('d-status').textContent = sc.label;
   $('d-status').style.background = sc.bg;
@@ -1002,6 +1074,7 @@ async function deleteItem() {
   closeDetail();
   if (currentPage==='dashboard') renderDashboard();
   else if (currentPage==='listed') renderListed();
+  else if (currentPage==='sold') renderSold();
   else renderInventory();
 }
 
@@ -1076,8 +1149,11 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function catBadge(cat) {
+  return `<span class="cat-badge cat-${cat}">${CAT_LABELS[cat]||cat}</span>`;
+}
+
 function emptyState(icon,title,sub) {
-  return `<div class="empty"><div class="empty-icon">${icon}</div><div class="empty-title">${title}</div><div class="empty-sub">${sub}</div></div>`;
 }
 
 init();
